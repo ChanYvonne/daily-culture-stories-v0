@@ -14,13 +14,21 @@ export default function Home() {
   const displayStory = getStoryByDate(selectedDate) || todayStory
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Header />
-      <main className="container mx-auto px-4 py-8 md:py-12">
-        <TodayStory story={displayStory} isToday={selectedDate.toDateString() === today.toDateString()} />
-        <CalendarSection currentDate={today} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+      <main className="container mx-auto px-4 py-8 md:py-12 flex-1 flex flex-col">
+        <div className="flex flex-col lg:flex-row gap-8 flex-1 min-h-0">
+          {/* Story takes 60% width on large screens */}
+          <div className="lg:flex-[3] lg:min-w-0 lg:overflow-y-auto">
+            <TodayStory story={displayStory} isToday={selectedDate.toDateString() === today.toDateString()} />
+          </div>
+          {/* Calendar takes 40% width on large screens */}
+          <div className="lg:flex-[2] lg:min-w-0 lg:overflow-y-auto">
+            <CalendarSection currentDate={today} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+          </div>
+        </div>
       </main>
-      <footer className="border-t border-border mt-16 py-8">
+      <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>Discover Chinese and Taiwanese culture, one story at a time</p>
         </div>
