@@ -7,6 +7,8 @@
 
 ## Overview
 
+A simple website that helps you learn about Chinese and Taiwanese history, culture, and language. It's geared to help Americans connect with their culture. Started on December 12th, 2025.
+
 This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
 Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
