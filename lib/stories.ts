@@ -84,7 +84,7 @@ This idiom is especially relevant in design, writing, and communication—someti
     date: "December 27, 2025",
     category: "Taiwanese History",
     title: "The Constitutional Era Begins",
-    titleChinese: "行憲紀念日 (Xíng Xiàn Jì Niàn Rì)",
+    titleChinese: "行宪纪念日 (Xíng Xiàn Jì Niàn Rì)",
     summary: "December 25, 1947 marked the adoption of the ROC Constitution in Taiwan.",
     content: `On December 25, 1947, the Constitution of the Republic of China went into effect, establishing the constitutional framework that still governs Taiwan today.
 
@@ -671,13 +671,37 @@ Paper is considered one of China's "Four Great Inventions" (alongside the compas
   },
 ]
 
-export function getTodayStory(): Story {
-  // Return the most recent story (first in array)
-  return stories[0]
+function formatDate(date: Date): string {
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ]
+  const day = date.getDate()
+  const month = monthNames[date.getMonth()]
+  const year = date.getFullYear()
+  return `${month} ${day}, ${year}`
 }
 
-export function getStoryByDate(date: string): Story | undefined {
-  return stories.find((story) => story.date === date)
+export function getTodayStory(): Story {
+  const today = new Date()
+  const dateStr = formatDate(today)
+  const story = stories.find((s) => s.date === dateStr)
+  return story || stories[0]
+}
+
+export function getStoryByDate(date: Date): Story | null {
+  const dateStr = formatDate(date)
+  return stories.find((s) => s.date === dateStr) || null
 }
 
 export function getStoriesByMonth(year: number, month: number): Story[] {

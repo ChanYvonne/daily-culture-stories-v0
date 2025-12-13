@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock } from "lucide-react"
 import type { Story } from "@/lib/stories"
 
-export function TodayStory({ story }: { story: Story }) {
+export function TodayStory({ story, isToday = true }: { story: Story; isToday?: boolean }) {
   return (
     <div className="mb-12 md:mb-16">
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="h-5 w-5 text-accent" />
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Today&apos;s Story · {story.date}
+          {isToday ? "Today's Story" : "Story from Archive"} · {story.date}
         </h2>
       </div>
 

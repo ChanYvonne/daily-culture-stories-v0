@@ -4,10 +4,17 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react"
 import { useState } from "react"
-import Link from "next/link"
 import { getStoriesByMonth, formatDateForUrl, isStoryAvailable } from "@/lib/stories"
 
-export function CalendarSection({ currentDate }: { currentDate: Date }) {
+export function CalendarSection({
+  currentDate,
+  selectedDate,
+  onDateSelect,
+}: {
+  currentDate: Date
+  selectedDate: Date
+  onDateSelect: (date: Date) => void
+}) {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth())
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
 
@@ -96,17 +103,24 @@ export function CalendarSection({ currentDate }: { currentDate: Date }) {
               selectedMonth === currentDate.getMonth() &&
               selectedYear === currentDate.getFullYear()
 
+            const isSelected =
+              day === selectedDate.getDate() &&
+              selectedMonth === selectedDate.getMonth() &&
+              selectedYear === selectedDate.getFullYear()
+
             return hasStory ? (
-              <Link
+              <button
                 key={day}
-                href={`/story/${dateStr}`}
+                onClick={() => onDateSelect(new Date(selectedYear, selectedMonth, day))}
                 className={`
                   aspect-square flex flex-col items-center justify-center p-2 rounded-md
                   transition-all hover:scale-105
                   ${
-                    isToday
-                      ? "bg-primary text-primary-foreground font-bold shadow-md"
-                      : "bg-accent/10 hover:bg-accent/20 text-foreground"
+                    isSelected
+                      ? "bg-primary text-primary-foreground font-bold shadow-md ring-2 ring-primary ring-offset-2"
+                      : isToday
+                        ? "bg-accent text-accent-foreground font-semibold"
+                        : "bg-accent/10 hover:bg-accent/20 text-foreground"
                   }
                 `}
               >
@@ -114,7 +128,7 @@ export function CalendarSection({ currentDate }: { currentDate: Date }) {
                 {story && (
                   <span className="text-[0.6rem] mt-1 text-center leading-tight line-clamp-2">{story.category}</span>
                 )}
-              </Link>
+              </button>
             ) : (
               <div
                 key={day}
@@ -131,7 +145,11 @@ export function CalendarSection({ currentDate }: { currentDate: Date }) {
 
         <div className="mt-6 flex items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary" />
+            <div className="w-6 h-6 rounded bg-primary ring-2 ring-primary ring-offset-2" />
+            <span>Selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-accent" />
             <span>Today</span>
           </div>
           <div className="flex items-center gap-2">
