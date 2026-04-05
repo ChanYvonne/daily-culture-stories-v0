@@ -9,7 +9,7 @@ export default async function StoryPage({
   params: Promise<{ date: string }>
 }) {
   const { date } = await params
-  const story = getStoryByDate(date)
+  const story = await getStoryByDate(date)
 
   if (!story) {
     notFound()

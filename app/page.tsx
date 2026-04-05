@@ -1,32 +1,34 @@
-"use client"
-
-import { useState } from "react"
 import { Header } from "@/components/header"
-import { TodayStory } from "@/components/today-story"
-import { CalendarSection } from "@/components/calendar-section"
-import { getTodayStory, getStoryByDate } from "@/lib/stories"
+import { HomePage } from "@/components/home-page"
+import { getLatestFeaturedStory, getStoriesByMonth, getStoryByDate, getTodayStory } from "@/lib/stories"
+import { getTodayIsoDateInTimezone } from "@/lib/story-types"
 
-export default function Home() {
-  const today = new Date()
-  const [selectedDate, setSelectedDate] = useState<Date>(today)
-
-  const todayStory = getTodayStory()
-  const displayStory = getStoryByDate(selectedDate) || todayStory
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<{ date?: string }>
+}) {
+  const todayIsoDate = getTodayIsoDateInTimezone()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const requestedDate = resolvedSearchParams?.date
+  const todayStory = await getTodayStory(todayIsoDate)
+  const initialStory =
+    (requestedDate ? await getStoryByDate(requestedDate) : null) ?? todayStory ?? (await getLatestFeaturedStory())
+  const initialStoryDate = initialStory?.storyDate ?? todayIsoDate
+  const [initialYear, initialMonth] = initialStoryDate.split("-").map(Number)
+  const initialMonthStories = await getStoriesByMonth(initialYear, initialMonth - 1)
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       <main className="container mx-auto px-4 py-8 md:py-12 flex-1 flex flex-col">
-        <div className="flex flex-col lg:flex-row gap-8 flex-1 min-h-0">
-          {/* Story takes 60% width on large screens */}
-          <div className="lg:flex-[3] lg:min-w-0 lg:overflow-y-auto">
-            <TodayStory story={displayStory} isToday={selectedDate.toDateString() === today.toDateString()} />
-          </div>
-          {/* Calendar takes 40% width on large screens */}
-          <div className="lg:flex-[2] lg:min-w-0 lg:overflow-y-auto">
-            <CalendarSection currentDate={today} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
-          </div>
-        </div>
+        <HomePage
+          initialStory={initialStory}
+          todayIsoDate={todayIsoDate}
+          initialMonth={initialMonth - 1}
+          initialYear={initialYear}
+          initialMonthStories={initialMonthStories}
+        />
       </main>
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">

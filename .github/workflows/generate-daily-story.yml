@@ -1,0 +1,58 @@
+name: Generate Daily Story
+
+on:
+  schedule:
+    - cron: "5 14 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force regeneration even if a featured story already exists for the date"
+        required: false
+        default: "false"
+      date:
+        description: "Optional ISO date override, e.g. 2026-04-05"
+        required: false
+        default: ""
+
+concurrency:
+  group: generate-daily-story
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Supabase daily story function
+        env:
+          SUPABASE_FUNCTION_URL: https://bowpyoxrfmjfvxlimuvc.supabase.co/functions/v1/generate-daily-story
+          SUPABASE_CRON_SECRET: ${{ secrets.SUPABASE_CRON_SECRET }}
+          FORCE_INPUT: ${{ github.event.inputs.force || 'false' }}
+          DATE_INPUT: ${{ github.event.inputs.date || '' }}
+        run: |
+          if [ -z "$SUPABASE_CRON_SECRET" ]; then
+            echo "Missing required GitHub Actions secret: SUPABASE_CRON_SECRET"
+            exit 1
+          fi
+
+          body='{}'
+
+          if [ "$FORCE_INPUT" = "true" ] || [ -n "$DATE_INPUT" ]; then
+            date_json=null
+            if [ -n "$DATE_INPUT" ]; then
+              date_json="\"$DATE_INPUT\""
+            fi
+            body="{\"force\":$FORCE_INPUT,\"date\":$date_json}"
+          fi
+
+          echo "POST $SUPABASE_FUNCTION_URL"
+          echo "Request body: $body"
+
+          response="$(curl --silent --show-error --fail-with-body \
+            -X POST "$SUPABASE_FUNCTION_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: $SUPABASE_CRON_SECRET" \
+            -d "$body")"
+
+          echo "$response"

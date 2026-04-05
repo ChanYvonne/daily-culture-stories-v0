@@ -3,22 +3,49 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react"
-import { useState } from "react"
-import { getStoriesByMonth, formatDateForUrl, isStoryAvailable } from "@/lib/stories"
+import { useEffect, useState } from "react"
+import { getStoriesByMonthClient } from "@/lib/stories-client"
+import { toIsoDateFromParts, type Story } from "@/lib/story-types"
 
 export function CalendarSection({
-  currentDate,
+  currentDateIso,
   selectedDate,
+  initialMonth,
+  initialYear,
+  initialStories,
   onDateSelect,
 }: {
-  currentDate: Date
-  selectedDate: Date
-  onDateSelect: (date: Date) => void
+  currentDateIso: string
+  selectedDate: string
+  initialMonth: number
+  initialYear: number
+  initialStories: Story[]
+  onDateSelect: (storyDate: string) => void
 }) {
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth())
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth)
+  const [selectedYear, setSelectedYear] = useState(initialYear)
+  const [stories, setStories] = useState(initialStories)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const stories = getStoriesByMonth(selectedYear, selectedMonth)
+  useEffect(() => {
+    let isActive = true
+
+    const loadStories = async () => {
+      setIsLoading(true)
+      const nextStories = await getStoriesByMonthClient(selectedYear, selectedMonth)
+
+      if (isActive) {
+        setStories(nextStories)
+        setIsLoading(false)
+      }
+    }
+
+    void loadStories()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedMonth, selectedYear])
 
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
   const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay()
@@ -83,6 +110,8 @@ export function CalendarSection({
           </Button>
         </div>
 
+        {isLoading && <p className="mb-4 text-sm text-muted-foreground">Loading stories for this month...</p>}
+
         <div className="grid grid-cols-7 gap-2">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div key={day} className="text-center text-xs font-medium text-muted-foreground p-2">
@@ -95,23 +124,16 @@ export function CalendarSection({
           ))}
 
           {days.map((day) => {
-            const dateStr = formatDateForUrl(selectedYear, selectedMonth, day)
-            const story = stories.find((s) => s.date === dateStr)
-            const hasStory = isStoryAvailable(selectedYear, selectedMonth, day)
-            const isToday =
-              day === currentDate.getDate() &&
-              selectedMonth === currentDate.getMonth() &&
-              selectedYear === currentDate.getFullYear()
-
-            const isSelected =
-              day === selectedDate.getDate() &&
-              selectedMonth === selectedDate.getMonth() &&
-              selectedYear === selectedDate.getFullYear()
+            const storyDate = toIsoDateFromParts(selectedYear, selectedMonth, day)
+            const story = stories.find((entry) => entry.storyDate === storyDate)
+            const hasStory = Boolean(story)
+            const isToday = storyDate === currentDateIso
+            const isSelected = storyDate === selectedDate
 
             return hasStory ? (
               <button
                 key={day}
-                onClick={() => onDateSelect(new Date(selectedYear, selectedMonth, day))}
+                onClick={() => onDateSelect(storyDate)}
                 className={`
                   aspect-square flex flex-col items-center justify-center p-2 rounded-md
                   transition-all hover:scale-105

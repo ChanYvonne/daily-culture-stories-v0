@@ -3,9 +3,35 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock } from "lucide-react"
-import type { Story } from "@/lib/stories"
+import type { Story } from "@/lib/story-types"
 
-export function TodayStory({ story, isToday = true }: { story: Story; isToday?: boolean }) {
+export function TodayStory({
+  story,
+  isToday = true,
+  isLoading = false,
+}: {
+  story: Story | null
+  isToday?: boolean
+  isLoading?: boolean
+}) {
+  if (!story) {
+    return (
+      <div className="mb-12 md:mb-16">
+        <div className="flex items-center gap-2 mb-6">
+          <Calendar className="h-5 w-5 text-accent" />
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">No Story Published Yet</h2>
+        </div>
+
+        <Card className="p-6 md:p-8 border-2 border-dashed border-border shadow-lg">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">Today&apos;s story is still being prepared.</h1>
+          <p className="text-muted-foreground leading-relaxed">
+            Check back later, or explore the archive using the calendar while the next featured story is added.
+          </p>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="mb-12 md:mb-16">
       <div className="flex items-center gap-2 mb-6">
@@ -24,6 +50,11 @@ export function TodayStory({ story, isToday = true }: { story: Story; isToday?: 
             <Clock className="h-3 w-3 mr-1" />
             {story.readTime} min read
           </Badge>
+          {isLoading && (
+            <Badge variant="outline" className="text-muted-foreground">
+              Loading...
+            </Badge>
+          )}
         </div>
 
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 leading-tight text-balance">

@@ -28,3 +28,15 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Daily Story Automation
+
+This repo now includes a GitHub Actions workflow at [`.github/workflows/generate-daily-story.yml`](/Users/yvonnechan/AIProjects/daily-culture-stories-v0/.github/workflows/generate-daily-story.yml) that can call the deployed Supabase Edge Function once per day.
+
+To activate it in GitHub:
+
+1. Open your repository settings in GitHub.
+2. Add a repository secret named `SUPABASE_CRON_SECRET`.
+3. Set that secret to the same `CRON_SECRET` value configured in your Supabase project.
+
+The workflow is scheduled for `14:05 UTC` every day, which stays safely after midnight in `America/New_York` year-round, and it can also be run manually with optional `date` and `force` inputs.

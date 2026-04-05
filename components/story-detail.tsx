@@ -3,13 +3,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import type { Story } from "@/lib/stories"
+import type { Story } from "@/lib/story-types"
 
 export function StoryDetail({ story }: { story: Story }) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <Link href="/">
+        <Link href={`/?date=${story.storyDate}`}>
           <Button variant="ghost" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Today
