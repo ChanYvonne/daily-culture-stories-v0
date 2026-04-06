@@ -26,11 +26,16 @@ jobs:
     steps:
       - name: Trigger Supabase daily story function
         env:
-          SUPABASE_FUNCTION_URL: https://bowpyoxrfmjfvxlimuvc.supabase.co/functions/v1/generate-daily-story
+          SUPABASE_FUNCTION_URL: ${{ vars.SUPABASE_FUNCTION_URL }}
           SUPABASE_CRON_SECRET: ${{ secrets.SUPABASE_CRON_SECRET }}
           FORCE_INPUT: ${{ github.event.inputs.force || 'false' }}
           DATE_INPUT: ${{ github.event.inputs.date || '' }}
         run: |
+          if [ -z "$SUPABASE_FUNCTION_URL" ]; then
+            echo "Missing required GitHub Actions variable: SUPABASE_FUNCTION_URL"
+            exit 1
+          fi
+
           if [ -z "$SUPABASE_CRON_SECRET" ]; then
             echo "Missing required GitHub Actions secret: SUPABASE_CRON_SECRET"
             exit 1
