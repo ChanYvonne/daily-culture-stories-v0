@@ -28,6 +28,7 @@ jobs:
         env:
           SUPABASE_FUNCTION_URL: ${{ vars.SUPABASE_FUNCTION_URL }}
           SUPABASE_CRON_SECRET: ${{ secrets.SUPABASE_CRON_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           FORCE_INPUT: ${{ github.event.inputs.force || 'false' }}
           DATE_INPUT: ${{ github.event.inputs.date || '' }}
         run: |
@@ -57,6 +58,7 @@ jobs:
           response="$(curl --silent --show-error --fail-with-body \
             -X POST "$SUPABASE_FUNCTION_URL" \
             -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \ 
             -H "x-cron-secret: $SUPABASE_CRON_SECRET" \
             -d "$body")"
 
