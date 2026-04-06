@@ -58,7 +58,7 @@ jobs:
           response="$(curl --silent --show-error --fail-with-body \
             -X POST "$SUPABASE_FUNCTION_URL" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \ 
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
             -H "x-cron-secret: $SUPABASE_CRON_SECRET" \
             -d "$body")"
 
