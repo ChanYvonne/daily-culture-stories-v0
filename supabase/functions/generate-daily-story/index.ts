@@ -27,10 +27,19 @@ type StoryPayload = {
   titleChinese: string
   summary: string
   content: string
+  phraseSimplified: string
+  phraseTraditional: string
+  phrasePinyin: string
+  phraseMeaning: string
+  backgroundParagraphs: [string, string]
+  sourceUrl: string
+  reflection: string
   readTime: number
   themeKey: string
   whyThisDateMatters: string
 }
+
+const DEFAULT_MODEL = "gpt-5-mini"
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body, null, 2), {
@@ -75,13 +84,13 @@ function getTodayIsoDateInTimezone(date = new Date(), timeZone = "America/New_Yo
 function getThemeFallback(storyDate: string) {
   const dayIndex = new Date(`${storyDate}T12:00:00Z`).getUTCDay()
   const themes = [
-    { category: "Cultural Tradition", themeKey: "weekend-tradition" },
+    { category: "Language Lesson", themeKey: "sunday-tongue-twister-or-joke" },
     { category: "Chinese Idiom", themeKey: "idiom-monday" },
     { category: "Language Lesson", themeKey: "language-tuesday" },
     { category: "Chinese History", themeKey: "history-wednesday" },
     { category: "Taiwanese History", themeKey: "taiwan-thursday" },
     { category: "Cultural Tradition", themeKey: "tradition-friday" },
-    { category: "Cultural Tradition", themeKey: "weekend-tradition" },
+    { category: "Language Lesson", themeKey: "saturday-practical-language" },
   ] as const
 
   return themes[dayIndex]
@@ -94,41 +103,104 @@ function getMonthDay(storyDate: string) {
 
 function getDefaultSystemPrompt() {
   return `You are a culturally knowledgeable guide specializing in Chinese and Taiwanese language, history, and traditions.
-Your goal is to generate a daily culturally relevant learning story that motivates English-speaking learners in their Mandarin journey while deepening their cultural understanding.
 
-Determine whether the date has a real cultural, seasonal, or historical relevance in Chinese or Taiwanese culture.
-If it does, prioritize that topic.
-If it does not, fall back to this weekly system:
-Monday: Chinese idiom.
-Tuesday: Practical language lesson.
-Wednesday: Chinese history story.
-Thursday: Taiwanese history or culture.
-Friday: Cultural tradition or philosophy.
-Saturday and Sunday: Seasonal, food, customs, or lifestyle topics.
+Your goal is to generate a **daily Chinese Culture Story** that is concise, engaging, and educational for English-speaking learners. Each story should help users learn **Simplified and Traditional Chinese** while deepening their understanding of **Chinese and Taiwanese culture**.
 
-Write in the style of a polished daily cultural entry for a website.
-The visible result should feel like this shape:
-title
-Chinese subtitle with pinyin in parentheses
-one short summary paragraph
-then 3 to 4 natural paragraphs of body content
+---
 
-Do not include visible section labels like "Phrase of the Day", "Background", or "Reflection".
-Do not include bullet points.
-Do not mention prompts or instructions.
-Do not add filler.
+### Step 1: Determine the Content Type
 
-The writing should be emotionally engaging but grounded, educational with real cultural depth, and concise.
-Use English for the prose, but include Chinese where naturally useful.
-Any time Chinese characters appear anywhere in the visible output, immediately follow them with pinyin with tone marks in parentheses, for example: 茶馆 (cháguǎn).
-The titleChinese field should contain a concise Chinese subtitle formatted naturally, for example: 除夕 (Chú Xī)
-The summary should be 1 to 2 sentences.
-The content should be 3 to 4 paragraphs separated by blank lines and should read smoothly on a website.
-If the topic is an idiom, include its origin story naturally in the body.
-If the topic is historical, anchor it in real events.
-If the topic is a language lesson, include practical nuance in prose.
-If the topic is food or custom, explain cultural significance in prose.
-Return only content that fits the requested schema.`
+First, determine the most relevant topic for today using this priority:
+
+1. If today aligns with a real **Chinese or Taiwanese holiday, festival, or culturally significant historical event**, generate a story based on that topic.
+2. If no relevant event exists, follow this weekly fallback system:
+- Monday: Chinese idiom
+- Tuesday: Practical language lesson (may include cultural slang)
+- Wednesday: Chinese history
+- Thursday: Taiwanese history or culture
+- Friday: Cultural tradition or philosophy
+- Saturday: Practical language lesson focused on real-life vocabulary and phrases used with friends, family, or at restaurants (may include cultural slang)
+- Sunday: Chinese tongue twister or a Chinese or Taiwanese joke with explanation
+
+---
+
+### Step 2: Output Format (STRICT)
+
+Return content that can be displayed in the following exact structure:
+
+Title
+
+Chinese Phrase of the Day
+
+Simplified: [text]
+
+Traditional: [text]
+
+Pinyin: [text with tone marks]
+
+Meaning: [concise English meaning]
+
+Background Story
+
+- Paragraph 1: Context, background, or story
+- Paragraph 2: Cultural meaning, modern relevance, or reflection
+
+Source
+
+- Include exactly **1 credible link** that is accessible (e.g., Wikipedia or Britannica)
+
+Reflection
+
+- One concise sentence with a takeaway, insight, or question
+
+---
+
+### Writing Guidelines
+
+- Keep the Background Story to **no more than 2 paragraphs total**
+- Keep the overall response **concise, clear, and easy to scan**
+- Avoid filler; every sentence should teach something meaningful
+- Write in **natural, polished English prose**
+- Ensure Chinese text is **accurate and natural**
+- Use only **Simplified Chinese, Traditional Chinese, and English**
+- Include **pinyin with tone marks**
+- Maintain a tone that is **engaging, thoughtful, and culturally grounded**
+
+---
+
+### Source & Accuracy Requirements (CRITICAL)
+
+- Use **at least 3 credible sources internally** to verify facts before generating the response
+- Cross-check key details (dates, meanings, historical claims) across sources
+- Only display **1 final source** in the output
+- Ensure the displayed source is **well-known, verifiable, accessible, and directly relevant to the topic**
+- Prefer sources such as TaiwanPlus, World Journal, **Wikipedia, Britannica, or reputable cultural/educational sites**
+
+---
+
+### Content-Specific Guidance
+
+- Idioms (Monday): Include origin or historical context naturally
+- Language Lessons (Tuesday & Saturday): Focus on practical usage, tone, and real-life nuance; slang is allowed when relevant
+- History (Wednesday/Thursday): Anchor in real events or cultural developments
+- Traditions (Friday): Explain meaning, rituals, and cultural significance
+- Sunday (Tongue Twister or Joke):
+    - Provide a short, memorable Chinese tongue twister or joke
+    - Ensure it is understandable for learners
+    - Use the Background Story to explain pronunciation challenges, wordplay, or humor
+
+---
+
+### Hard Constraints
+
+- Do NOT exceed **2 paragraphs** in the Background Story
+- MUST include **Simplified + Traditional Chinese + Pinyin + Meaning**
+- MUST include exactly **1 working, credible source link**
+- MUST follow the **content selection logic strictly**
+- Do NOT include any languages other than **English, Simplified Chinese, and Traditional Chinese**
+- Do NOT include extra commentary, explanations, or meta text
+- Do NOT mention prompts or instructions
+- Return only content that fits the requested schema.`
 }
 
 function getSystemPrompt() {
@@ -152,6 +224,18 @@ function getSchema() {
         titleChinese: { type: "string" },
         summary: { type: "string" },
         content: { type: "string" },
+        phraseSimplified: { type: "string" },
+        phraseTraditional: { type: "string" },
+        phrasePinyin: { type: "string" },
+        phraseMeaning: { type: "string" },
+        backgroundParagraphs: {
+          type: "array",
+          minItems: 2,
+          maxItems: 2,
+          items: { type: "string" },
+        },
+        sourceUrl: { type: "string" },
+        reflection: { type: "string" },
         readTime: { type: "integer", minimum: 3, maximum: 8 },
         themeKey: { type: "string" },
         whyThisDateMatters: { type: "string" },
@@ -162,6 +246,13 @@ function getSchema() {
         "titleChinese",
         "summary",
         "content",
+        "phraseSimplified",
+        "phraseTraditional",
+        "phrasePinyin",
+        "phraseMeaning",
+        "backgroundParagraphs",
+        "sourceUrl",
+        "reflection",
         "readTime",
         "themeKey",
         "whyThisDateMatters",
@@ -188,11 +279,30 @@ function buildUserPrompt(storyDate: string, event: CalendarEvent | null, recentS
     recentSummary,
     "Return a single story that is distinct from recent titles and themes.",
     "The story should feel date-aware when applicable and evergreen when not.",
-    "Keep the total learning content concise enough to fit roughly 200 to 350 words.",
-    "The summary should read naturally on the website and should not mention formatting.",
-    "The body content should be natural prose paragraphs with no visible labels.",
+    "Keep the total learning content concise enough to fit roughly 150 to 250 words.",
+    "The summary should be one concise sentence that introduces the learning value of the story.",
+    "The content field may be concise because the final visible story will be assembled from the structured fields.",
+    "Provide exactly two backgroundParagraphs. Do not include heading text inside either paragraph.",
+    "Provide exactly one sourceUrl. It must be a credible, accessible, directly relevant URL.",
     "whyThisDateMatters should explain the date relevance or fallback rationale in one sentence for internal use only.",
   ].join("\n")
+}
+
+function buildStoryContent(payload: StoryPayload) {
+  return [
+    "Chinese Phrase of the Day",
+    `Simplified: ${payload.phraseSimplified}`,
+    `Traditional: ${payload.phraseTraditional}`,
+    `Pinyin: ${payload.phrasePinyin}`,
+    `Meaning: ${payload.phraseMeaning}`,
+    "Background Story",
+    payload.backgroundParagraphs[0],
+    payload.backgroundParagraphs[1],
+    "Source",
+    payload.sourceUrl,
+    "Reflection",
+    payload.reflection,
+  ].join("\n\n")
 }
 
 function extractOutputText(response: Record<string, unknown>) {
@@ -238,7 +348,7 @@ async function createStoryPayload(storyDate: string, event: CalendarEvent | null
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: Deno.env.get("OPENAI_MODEL") ?? "gpt-5-nano",
+      model: Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL,
       reasoning: {
         effort: "low",
       },
@@ -277,7 +387,7 @@ async function createStoryPayload(storyDate: string, event: CalendarEvent | null
   return {
     payload: JSON.parse(outputText) as StoryPayload,
     responseId: typeof body.id === "string" ? body.id : null,
-    modelName: typeof body.model === "string" ? body.model : Deno.env.get("OPENAI_MODEL") ?? "gpt-5-nano",
+    modelName: typeof body.model === "string" ? body.model : Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL,
   }
 }
 
@@ -307,7 +417,7 @@ Deno.serve(async (request) => {
     .insert({
       story_date: storyDate,
       status: "running",
-      model_name: Deno.env.get("OPENAI_MODEL") ?? "gpt-5-nano",
+      model_name: Deno.env.get("OPENAI_MODEL") ?? DEFAULT_MODEL,
     })
     .select("id")
     .single()
@@ -373,7 +483,8 @@ Deno.serve(async (request) => {
 
     const event = (eventRows?.[0] as CalendarEvent | undefined) ?? null
     const { payload, responseId, modelName } = await createStoryPayload(storyDate, event, recentStories ?? [])
-    const contentHash = await sha256(`${storyDate}:${payload.title}:${payload.content}`)
+    const storyContent = buildStoryContent(payload)
+    const contentHash = await sha256(`${storyDate}:${payload.title}:${storyContent}`)
     const slug = `${storyDate}-${slugify(payload.title)}`
 
     if (existingStory && force) {
@@ -385,14 +496,14 @@ Deno.serve(async (request) => {
           title: payload.title,
           title_chinese: payload.titleChinese,
           summary: payload.summary,
-          content: payload.content,
+          content: storyContent,
           read_time: payload.readTime,
           lesson_learned: null,
           theme_key: payload.themeKey,
           source_event_id: event?.id ?? null,
           content_hash: contentHash,
           model_name: modelName,
-          prompt_version: "daily-story-v1",
+          prompt_version: "daily-story-v2",
           is_featured: true,
           display_order: 0,
         })
@@ -411,14 +522,14 @@ Deno.serve(async (request) => {
         title: payload.title,
         title_chinese: payload.titleChinese,
         summary: payload.summary,
-        content: payload.content,
+        content: storyContent,
         read_time: payload.readTime,
         lesson_learned: null,
         theme_key: payload.themeKey,
         source_event_id: event?.id ?? null,
         content_hash: contentHash,
         model_name: modelName,
-        prompt_version: "daily-story-v1",
+        prompt_version: "daily-story-v2",
       })
 
       if (insertError) {
