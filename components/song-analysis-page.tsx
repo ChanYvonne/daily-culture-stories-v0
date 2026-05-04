@@ -4,7 +4,7 @@ import { FormEvent, useRef, useState } from "react"
 import type React from "react"
 import { Button } from "@/components/ui/button"
 import type { PhraseAnnotation, SongAnalysis, SongAnalysisLine } from "@/lib/song-analysis-types"
-import { ArrowUpRight, Loader2, Music2, Plus, RefreshCw } from "lucide-react"
+import { ArrowUpRight, Loader2, Music2, RefreshCw } from "lucide-react"
 
 type AnalysisResponse = {
   analysis?: SongAnalysis
@@ -13,6 +13,18 @@ type AnalysisResponse = {
   warning?: string
   error?: string
 }
+
+type AnalysisProgress = {
+  step: string
+  message: string
+  percent: number
+  elapsedMs: number
+}
+
+type AnalysisStreamEvent =
+  | { type: "progress"; step: string; message: string; percent: number; elapsedMs: number }
+  | { type: "complete"; body: AnalysisResponse }
+  | { type: "error"; error: string; status: number }
 
 function SectionHeading({ children }: { children: string }) {
   return (
@@ -92,6 +104,15 @@ function SongHero({
                 {analysis.title}
               </h1>
               <p className="mt-2 font-serif text-xl italic leading-tight text-[#6f5b49] md:text-2xl">{analysis.artist}</p>
+              <a
+                href={analysis.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex max-w-full items-center gap-1 font-mono text-xs font-bold uppercase tracking-wide text-[#9e1b1b] underline-offset-4 hover:underline"
+              >
+                <span className="truncate">{analysis.sourceUrl}</span>
+                <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+              </a>
             </div>
             <Button
               type="button"
@@ -253,22 +274,116 @@ function AnalysisReader({
   )
 }
 
+function ProgressStatus({ progress, elapsedSeconds }: { progress: AnalysisProgress | null; elapsedSeconds: number }) {
+  if (!progress) {
+    return null
+  }
+
+  return (
+    <div className="relative z-10 mt-4" role="status" aria-live="polite">
+      <div className="flex items-center justify-between gap-4 font-mono text-xs font-bold uppercase tracking-wide text-[#6f5b49]">
+        <span>{progress.message}</span>
+        <span className="normal-case">{elapsedSeconds}s</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#dfd2bf]">
+        <div
+          className="h-full rounded-full bg-[#9e1b1b] transition-[width] duration-500 ease-out"
+          style={{ width: `${progress.percent}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAnalysis[] }) {
   const [link, setLink] = useState("")
+  const [manualLyrics, setManualLyrics] = useState("")
   const [selectedAnalysis, setSelectedAnalysis] = useState<SongAnalysis | null>(initialAnalyses[0] ?? null)
   const [analyses, setAnalyses] = useState(initialAnalyses)
+  const [hasAnalyzedOwnSong, setHasAnalyzedOwnSong] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [showManualLyrics, setShowManualLyrics] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const progressResetRef = useRef<number | null>(null)
+  const elapsedTimerRef = useRef<number | null>(null)
 
-  const analyzeSong = async (songLink: string, force = false) => {
+  const readAnalysisStream = async (response: Response) => {
+    if (!response.body) {
+      return (await response.json()) as AnalysisResponse
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let completedBody: AnalysisResponse | null = null
+
+    while (true) {
+      const { done, value } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+      const lines = buffer.split("\n")
+      buffer = lines.pop() ?? ""
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue
+        }
+
+        const event = JSON.parse(line) as AnalysisStreamEvent
+
+        if (event.type === "progress") {
+          setProgress({
+            step: event.step,
+            message: event.message,
+            percent: event.percent,
+            elapsedMs: event.elapsedMs,
+          })
+        }
+
+        if (event.type === "error") {
+          throw new Error(event.error)
+        }
+
+        if (event.type === "complete") {
+          completedBody = event.body
+        }
+      }
+
+      if (done) {
+        break
+      }
+    }
+
+    if (!completedBody) {
+      throw new Error("The analysis ended before a result was returned.")
+    }
+
+    return completedBody
+  }
+
+  const analyzeSong = async (songLink: string, force = false, lyricsOverride = "") => {
     setError(null)
     setMessage(null)
+    setProgress(null)
+    setElapsedSeconds(0)
+    if (!lyricsOverride.trim()) {
+      setShowManualLyrics(false)
+    }
+    if (progressResetRef.current) {
+      window.clearTimeout(progressResetRef.current)
+      progressResetRef.current = null
+    }
+    if (elapsedTimerRef.current) {
+      window.clearInterval(elapsedTimerRef.current)
+      elapsedTimerRef.current = null
+    }
 
     if (!songLink.trim()) {
-      setError("Paste a Spotify or YouTube link first.")
+      setError("Paste a YouTube or Spotify link first.")
       return
     }
 
@@ -277,20 +392,25 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
     } else {
       setIsLoading(true)
     }
+    const analysisStartedAt = Date.now()
+    elapsedTimerRef.current = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - analysisStartedAt) / 1000))
+    }, 250)
 
     try {
       const response = await fetch("/api/song-analysis", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ link: songLink, force }),
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+        body: JSON.stringify({ link: songLink, lyrics: lyricsOverride.trim() || undefined, force }),
       })
-      const body = (await response.json()) as AnalysisResponse
+      const body = await readAnalysisStream(response)
 
       if (!response.ok || !body.analysis) {
         throw new Error(body.error ?? "The analysis could not be created.")
       }
 
       setSelectedAnalysis(body.analysis)
+      setHasAnalyzedOwnSong(true)
       setAnalyses((current) => {
         const withoutDuplicate = current.filter((item) => item.id !== body.analysis?.id)
         return body.analysis && !body.unsaved ? [body.analysis, ...withoutDuplicate].slice(0, 6) : current
@@ -298,21 +418,32 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
       setMessage(body.warning ?? (body.reused ? "Found A Saved Analysis For This Song." : force ? null : null))
       if (!force) {
         setLink("")
+        setManualLyrics("")
+        setShowManualLyrics(false)
       }
     } catch (analysisError) {
-      setError(analysisError instanceof Error ? analysisError.message : "Something went wrong.")
+      const nextError = analysisError instanceof Error ? analysisError.message : "Something went wrong."
+      setError(nextError)
+      if (nextError.toLowerCase().includes("lyrics were not available")) {
+        setShowManualLyrics(true)
+      }
     } finally {
       if (force) {
         setIsRegenerating(false)
       } else {
         setIsLoading(false)
       }
+      if (elapsedTimerRef.current) {
+        window.clearInterval(elapsedTimerRef.current)
+        elapsedTimerRef.current = null
+      }
+      progressResetRef.current = window.setTimeout(() => setProgress(null), 900)
     }
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    await analyzeSong(link)
+    await analyzeSong(link, false, manualLyrics)
   }
 
   const handleRegenerate = async () => {
@@ -323,11 +454,6 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
     await analyzeSong(selectedAnalysis.sourceUrl, true)
   }
 
-  const focusInput = () => {
-    inputRef.current?.focus()
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
-
   return (
     <div className="mx-auto flex w-full flex-col gap-12 text-[#3a2b20] md:gap-16">
       <section className="relative overflow-hidden border-2 border-[#c8b797] px-5 py-6 md:px-8 md:py-8">
@@ -336,10 +462,10 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
         </div>
         <form className="relative z-10 space-y-3" onSubmit={handleSubmit}>
           <label className="sr-only" htmlFor="song-link">
-            Spotify Or YouTube Link
+            YouTube Or Spotify Link
           </label>
           <p className="font-mono text-xs font-bold uppercase tracking-wide text-[#6f5b49]">
-            Spotify Or YouTube Link
+            YouTube Or Spotify Link
           </p>
           <div className="flex flex-col gap-3 md:flex-row">
             <input
@@ -370,10 +496,31 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
             {error}
           </p>
         )}
+        <ProgressStatus progress={progress} elapsedSeconds={elapsedSeconds} />
+
+        {showManualLyrics && (
+          <div className="relative z-10 mt-4 space-y-2">
+            <label className="block font-mono text-xs font-bold uppercase tracking-wide text-[#6f5b49]" htmlFor="song-lyrics">
+              Lyrics
+            </label>
+            <textarea
+              id="song-lyrics"
+              value={manualLyrics}
+              onChange={(event) => setManualLyrics(event.target.value)}
+              placeholder="Paste lyrics here, then click Analyze again..."
+              className="min-h-32 w-full resize-y rounded-lg border border-[#ded8cf] bg-white px-4 py-3 font-serif text-base leading-relaxed text-[#3a2b20] outline-none placeholder:text-[#c8b797] focus-visible:ring-[3px] focus-visible:ring-[#c8b797]/60"
+            />
+          </div>
+        )}
       </section>
 
       {selectedAnalysis ? (
-        <AnalysisReader analysis={selectedAnalysis} isRegenerating={isRegenerating} onRegenerate={handleRegenerate} />
+        <>
+          {!hasAnalyzedOwnSong && (
+            <SectionHeading>Here&apos;s An Example Of What A Song Analysis Looks Like</SectionHeading>
+          )}
+          <AnalysisReader analysis={selectedAnalysis} isRegenerating={isRegenerating} onRegenerate={handleRegenerate} />
+        </>
       ) : (
         <section className="border-2 border-[#c8b797] p-6 text-center md:p-8">
           <Music2 className="mx-auto h-12 w-12 text-[#6f5b49]" />
@@ -407,20 +554,6 @@ export function SongAnalysisPage({ initialAnalyses }: { initialAnalyses: SongAna
               </span>
             </button>
           ))}
-
-          <button
-            type="button"
-            onClick={focusInput}
-            className="min-h-28 border-2 border-[#c8b797] px-5 py-5 text-left transition-colors hover:border-[#9e1b1b] md:px-6"
-          >
-            <span className="flex items-center gap-2 font-serif text-xl font-bold text-[#171008] md:text-2xl">
-              <Plus className="h-5 w-5 md:h-6 md:w-6" />
-              New Analysis
-            </span>
-            <span className="mt-2 block font-mono text-sm font-bold tracking-wide text-[#6f5b49]">
-              Paste A Link Above
-            </span>
-          </button>
         </div>
       </section>
     </div>

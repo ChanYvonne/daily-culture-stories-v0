@@ -44,6 +44,7 @@ export type SongAnalysis = {
   lyricsProvider: string
   providerTrackId?: string
   modelName?: string
+  latencyMs?: number
   status: "published" | "failed"
   analysis: SongAnalysisPayload
   createdAt: string
@@ -66,6 +67,7 @@ export type SongAnalysisRow = {
   raw_lyrics: string | null
   analysis: SongAnalysisPayload
   model_name: string | null
+  latency_ms: number | null
   status: "published" | "failed"
   created_at: string
   updated_at: string
@@ -86,6 +88,7 @@ export function mapSongAnalysisRow(row: SongAnalysisRow): SongAnalysis {
     lyricsProvider: row.lyrics_provider,
     providerTrackId: row.provider_track_id ?? undefined,
     modelName: row.model_name ?? undefined,
+    latencyMs: row.latency_ms ?? undefined,
     status: row.status,
     analysis: row.analysis,
     createdAt: row.created_at,

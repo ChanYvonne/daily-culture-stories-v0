@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
 import { createSupabaseServiceClient } from "@/lib/supabase"
+import { researchLyrics } from "@/lib/lyrics-researcher"
 import { mapSongAnalysisRow, type SongAnalysisPayload, type SongAnalysisRow, type SongSourceType } from "@/lib/song-analysis-types"
 
 const LYRICS_API_BASE_URL = process.env.LYRICS_API_BASE_URL ?? "https://lyrics.lewdhutao.my.eu.org"
@@ -26,8 +26,32 @@ type LyricsResult = {
   lyrics: string
 }
 
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ error: message }, { status })
+type SongAnalysisResponse = {
+  analysis?: ReturnType<typeof mapSongAnalysisRow> | (SongMetadata & {
+    id: string
+    genreTags: string[]
+    lyricsProvider: string
+    providerTrackId?: string
+    modelName?: string
+    latencyMs: number
+    status: "published"
+    analysis: SongAnalysisPayload
+    createdAt: string
+    updatedAt: string
+  })
+  reused?: boolean
+  unsaved?: boolean
+  warning?: string
+  error?: string
+}
+
+type ProgressEvent =
+  | { type: "progress"; step: string; message: string; percent: number; elapsedMs: number }
+  | { type: "complete"; body: SongAnalysisResponse }
+  | { type: "error"; error: string; status: number }
+
+function streamEvent(controller: ReadableStreamDefaultController<Uint8Array>, event: ProgressEvent) {
+  controller.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`))
 }
 
 function getSpotifyTrackId(url: URL) {
@@ -129,31 +153,6 @@ function normalizeTag(tag: string) {
   return normalized.toUpperCase()
 }
 
-async function getSpotifyArtistGenres(accessToken: string, artistIds: string[]) {
-  const uniqueArtistIds = Array.from(new Set(artistIds)).slice(0, 5)
-
-  if (uniqueArtistIds.length === 0) {
-    return []
-  }
-
-  const response = await fetch(`https://api.spotify.com/v1/artists?ids=${uniqueArtistIds.join(",")}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-
-  if (!response.ok) {
-    return []
-  }
-
-  const body = await response.json().catch(() => null)
-  const rawGenres = Array.isArray(body?.artists)
-    ? body.artists.flatMap((artist: { genres?: unknown }) => (Array.isArray(artist.genres) ? artist.genres : []))
-    : []
-
-  return Array.from(
-    new Set(rawGenres.map((genre: unknown) => (typeof genre === "string" ? normalizeTag(genre) : null)).filter(Boolean)),
-  ).slice(0, 2) as string[]
-}
-
 async function getSpotifyMetadata(sourceId: string, sourceUrl: string): Promise<SongMetadata | null> {
   const accessToken = await getSpotifyAccessToken()
 
@@ -167,11 +166,7 @@ async function getSpotifyMetadata(sourceId: string, sourceUrl: string): Promise<
       const artists = Array.isArray(track.artists)
         ? track.artists.map((artist: { name?: string }) => artist.name).filter(Boolean).join(", ")
         : ""
-      const artistIds = Array.isArray(track.artists)
-        ? track.artists.map((artist: { id?: string }) => artist.id).filter(Boolean)
-        : []
       const images = Array.isArray(track.album?.images) ? track.album.images : []
-      const genreTags = await getSpotifyArtistGenres(accessToken, artistIds)
 
       if (typeof track.name === "string" && artists) {
         return {
@@ -183,7 +178,7 @@ async function getSpotifyMetadata(sourceId: string, sourceUrl: string): Promise<
           album: typeof track.album?.name === "string" ? track.album.name : undefined,
           artworkUrl: typeof images[0]?.url === "string" ? images[0].url : undefined,
           releaseYear: getReleaseYear(track.album?.release_date),
-          genreTags,
+          genreTags: [],
         }
       }
     }
@@ -266,6 +261,33 @@ async function resolveYouTubeMetadataAndLyrics(sourceId: string, sourceUrl: stri
   return { metadata, lyrics }
 }
 
+async function getYouTubeMetadata(sourceId: string, sourceUrl: string): Promise<SongMetadata | null> {
+  const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(sourceUrl)}&format=json`).catch(() => null)
+
+  if (!response?.ok) {
+    return {
+      sourceType: "youtube",
+      sourceId,
+      sourceUrl,
+      title: "YouTube song",
+      artist: "Unknown artist",
+      genreTags: [],
+    }
+  }
+
+  const body = (await response.json().catch(() => null)) as { title?: string; author_name?: string; thumbnail_url?: string } | null
+
+  return {
+    sourceType: "youtube",
+    sourceId,
+    sourceUrl,
+    title: body?.title?.trim() || "YouTube song",
+    artist: body?.author_name?.trim() || "Unknown artist",
+    artworkUrl: body?.thumbnail_url,
+    genreTags: [],
+  }
+}
+
 async function resolveLyricsForMetadata(metadata: SongMetadata) {
   const musixmatchLyrics = await fetchLyrics("/v2/musixmatch/lyrics", {
     title: metadata.title,
@@ -280,6 +302,42 @@ async function resolveLyricsForMetadata(metadata: SongMetadata) {
     title: metadata.title,
     artist: metadata.artist,
   })
+}
+
+async function researchLyricsForMetadata(metadata: SongMetadata): Promise<LyricsResult | null> {
+  const result = await researchLyrics({
+    title: metadata.title,
+    artist: metadata.artist,
+    album: metadata.album,
+    titleAliases: metadata.title === "那些年" ? ["na xie nian", "those years"] : [],
+    artistAliases: metadata.artist.toLowerCase() === "hu xia" ? ["胡夏"] : [],
+  })
+
+  if (!result) {
+    return null
+  }
+
+  return {
+    provider: `Lyrics Research: ${result.provider}`,
+    providerTrackId: result.providerTrackId,
+    title: result.title,
+    artist: result.artist,
+    lyrics: result.lyrics,
+  }
+}
+
+function getTrustedLyricsMetadata(metadata: SongMetadata, lyrics: LyricsResult) {
+  const providerTitle = lyrics.title?.trim()
+  const providerArtist = lyrics.artist?.trim()
+  const hasGenericMetadata = metadata.title === "YouTube song" || metadata.artist === "Unknown artist"
+  const providerLooksInstrumental = /instrumental/i.test(providerTitle ?? "")
+
+  return {
+    ...metadata,
+    title: hasGenericMetadata && providerTitle && !providerLooksInstrumental ? providerTitle : metadata.title,
+    artist: hasGenericMetadata && providerArtist ? providerArtist : metadata.artist,
+    artworkUrl: metadata.artworkUrl ?? lyrics.artworkUrl,
+  }
 }
 
 function getAnalysisSchema() {
@@ -419,7 +477,9 @@ async function createAnalysis(metadata: SongMetadata, lyrics: string) {
                 "Do not reproduce large lyric passages beyond the line-by-line input needed for analysis.",
                 "Unless a field is directly quoting or referencing the song lyrics, write it in English.",
                 "Write overview, culturalContext, culturalMeaning, poeticNotes, literalTranslation, meaning, culturalNote, imageryNotes, and annotation notes in English.",
-                "Only original lyric lines and quoted phrases should remain in Chinese. Pinyin fields must contain pinyin only.",
+                "Only original lyric lines and quoted phrases should remain in Chinese.",
+                "Every pinyin field must contain pinyin with tone marks, such as nǐ hǎo, not unmarked pinyin like ni hao and not tone numbers like ni3 hao3.",
+                "Before returning, check every line pinyin and annotation pinyin value; if any Mandarin syllable lacks tone marks, add the correct tone marks.",
                 "For each line, literalTranslation should be a clear English translation and culturalMeaning should explain the line in the context of the whole song.",
                 "Cultural context, imagery, and phrase explanations must always be in English.",
                 "Return displayTags as 1-2 short uppercase English genre/style labels suitable for UI chips, such as MANDOPOP, ROMANTIC BALLAD, CANTOPOP, FOLK POP, or ROCK BALLAD.",
@@ -504,136 +564,215 @@ async function createAnalysisWithSupabaseFunction(metadata: SongMetadata, lyrics
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null)
-  const link = typeof body?.link === "string" ? body.link.trim() : ""
-  const force = Boolean(body?.force)
+  const startedAt = Date.now()
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emitProgress = (step: string, message: string, percent: number) => {
+        streamEvent(controller, { type: "progress", step, message, percent, elapsedMs: Date.now() - startedAt })
+      }
 
-  if (!link) {
-    return jsonError("Paste a Spotify or YouTube link to analyze.")
-  }
+      const emitError = (error: string, status = 400) => {
+        streamEvent(controller, { type: "error", error, status })
+        controller.close()
+      }
 
-  const parsedLink = parseMusicLink(link)
-
-  if (!parsedLink) {
-    return jsonError("Use a Spotify track link or a YouTube / YouTube Music link.")
-  }
-
-  const supabase = createSupabaseServiceClient()
-
-  if (supabase && !force) {
-    const { data: existing } = await supabase
-      .from("song_analyses")
-      .select("*")
-      .eq("status", "published")
-      .eq("source_type", parsedLink.sourceType)
-      .eq("source_id", parsedLink.sourceId)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json({ analysis: mapSongAnalysisRow(existing as SongAnalysisRow), reused: true })
-    }
-  }
-
-  let metadata: SongMetadata | null = null
-  let lyrics: LyricsResult | null = null
-
-  if (parsedLink.sourceType === "youtube") {
-    const resolved = await resolveYouTubeMetadataAndLyrics(parsedLink.sourceId, parsedLink.sourceUrl)
-    metadata = resolved?.metadata ?? null
-    lyrics = resolved?.lyrics ?? null
-  } else {
-    metadata = await getSpotifyMetadata(parsedLink.sourceId, parsedLink.sourceUrl)
-    lyrics = metadata ? await resolveLyricsForMetadata(metadata) : null
-  }
-
-  if (!metadata) {
-    return jsonError("I could not identify that song from the link.", 422)
-  }
-
-  if (!lyrics) {
-    return jsonError("I found the song, but the lyrics were not available from the free lyrics API.", 422)
-  }
-
-  const enrichedMetadata = {
-    ...metadata,
-    title: lyrics.title ?? metadata.title,
-    artist: lyrics.artist ?? metadata.artist,
-    artworkUrl: metadata.artworkUrl ?? lyrics.artworkUrl,
-  }
-  let generated: Awaited<ReturnType<typeof createAnalysis>>
-
-  try {
-    generated = await createAnalysis(enrichedMetadata, lyrics.lyrics)
-  } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "The AI analysis could not be created.", 500)
-  }
-
-  const genreTags = getDisplayTags(enrichedMetadata, generated.analysis)
-
-  if (!supabase) {
-    return NextResponse.json({
-      analysis: {
+      const buildUnsavedAnalysis = (
+        metadata: SongMetadata,
+        genreTags: string[],
+        lyrics: LyricsResult,
+        generated: Awaited<ReturnType<typeof createAnalysis>>,
+        latencyMs: number,
+      ) => ({
         id: "unsaved",
-        ...enrichedMetadata,
+        ...metadata,
         genreTags,
         lyricsProvider: lyrics.provider,
         providerTrackId: lyrics.providerTrackId,
         modelName: generated.modelName,
-        status: "published",
+        latencyMs,
+        status: "published" as const,
         analysis: generated.analysis,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      },
-      reused: false,
-      unsaved: true,
-    })
-  }
+      })
 
-  const { data, error } = await supabase
-    .from("song_analyses")
-    .upsert(
-      {
-        source_type: enrichedMetadata.sourceType,
-        source_id: enrichedMetadata.sourceId,
-        source_url: enrichedMetadata.sourceUrl,
-        title: enrichedMetadata.title,
-        artist: enrichedMetadata.artist,
-        album: enrichedMetadata.album ?? null,
-        artwork_url: enrichedMetadata.artworkUrl ?? null,
-        release_year: enrichedMetadata.releaseYear ?? null,
-        genre_tags: genreTags,
-        lyrics_provider: lyrics.provider,
-        provider_track_id: lyrics.providerTrackId ?? null,
-        raw_lyrics: lyrics.lyrics,
-        analysis: generated.analysis,
-        model_name: generated.modelName,
-        status: "published",
-      },
-      { onConflict: "source_type,source_id" },
-    )
-    .select("*")
-    .single()
+      try {
+      emitProgress("validate", "Checking the song link...", 8)
+      const body = await request.json().catch(() => null)
+      const link = typeof body?.link === "string" ? body.link.trim() : ""
+      const manualLyrics = typeof body?.lyrics === "string" ? body.lyrics.trim() : ""
+      const force = Boolean(body?.force)
 
-  if (error || !data) {
-    const saveMessage = error?.message ?? "No saved row was returned."
-    return NextResponse.json({
-      analysis: {
-        id: "unsaved",
-        ...enrichedMetadata,
-        genreTags,
-        lyricsProvider: lyrics.provider,
-        providerTrackId: lyrics.providerTrackId,
-        modelName: generated.modelName,
-        status: "published",
-        analysis: generated.analysis,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      reused: false,
-      unsaved: true,
-      warning: `The analysis was created, but it could not be saved yet: ${saveMessage}`,
-    })
-  }
+      if (!link) {
+        emitError("Paste a YouTube or Spotify link to analyze.")
+        return
+      }
 
-  return NextResponse.json({ analysis: mapSongAnalysisRow(data as SongAnalysisRow), reused: false })
+      const parsedLink = parseMusicLink(link)
+
+      if (!parsedLink) {
+        emitError("Use a YouTube / YouTube Music link or a Spotify track link.")
+        return
+      }
+
+      const supabase = createSupabaseServiceClient()
+
+      emitProgress("cache", "Checking for a saved analysis...", 18)
+      if (supabase && !force && !manualLyrics) {
+        const { data: existing } = await supabase
+          .from("song_analyses")
+          .select("*")
+          .eq("status", "published")
+          .eq("source_type", parsedLink.sourceType)
+          .eq("source_id", parsedLink.sourceId)
+          .maybeSingle()
+
+        if (existing) {
+          const latencyMs = Date.now() - startedAt
+          const { data: updated } = await supabase
+            .from("song_analyses")
+            .update({ latency_ms: latencyMs })
+            .eq("id", (existing as SongAnalysisRow).id)
+            .select("*")
+            .single()
+
+          emitProgress("complete", "Found a saved analysis.", 100)
+          streamEvent(controller, {
+            type: "complete",
+            body: { analysis: mapSongAnalysisRow((updated ?? existing) as SongAnalysisRow), reused: true },
+          })
+          controller.close()
+          return
+        }
+      }
+
+      let metadata: SongMetadata | null = null
+      let lyrics: LyricsResult | null = null
+
+      emitProgress("metadata", "Reading song metadata...", 32)
+      if (parsedLink.sourceType === "youtube") {
+        const resolved = await resolveYouTubeMetadataAndLyrics(parsedLink.sourceId, parsedLink.sourceUrl)
+        metadata = resolved?.metadata ?? null
+        lyrics = resolved?.lyrics ?? null
+        if (!metadata) {
+          metadata = await getYouTubeMetadata(parsedLink.sourceId, parsedLink.sourceUrl)
+        }
+      } else {
+        metadata = await getSpotifyMetadata(parsedLink.sourceId, parsedLink.sourceUrl)
+      }
+
+      if (!metadata) {
+        emitError("I could not identify that song from the link.", 422)
+        return
+      }
+
+      if (manualLyrics) {
+        emitProgress("manual-lyrics", "Using pasted lyrics...", 52)
+        lyrics = {
+          provider: "User-provided lyrics",
+          lyrics: manualLyrics,
+        }
+      }
+
+      if (!lyrics) {
+        emitProgress("lyrics-research", "Searching public lyric libraries...", 48)
+        lyrics = await researchLyricsForMetadata(metadata)
+      }
+
+      if (!lyrics) {
+        emitProgress("lyrics", "Checking configured lyrics APIs...", 58)
+        lyrics = await resolveLyricsForMetadata(metadata)
+      }
+
+      if (!lyrics) {
+        emitError("I found the song, but lyrics were not available from the configured free lyric sources.", 422)
+        return
+      }
+
+      const enrichedMetadata = getTrustedLyricsMetadata(metadata, lyrics)
+      let generated: Awaited<ReturnType<typeof createAnalysis>>
+
+      emitProgress("analysis", "Interpreting lyrics and cultural context...", 68)
+      try {
+        generated = await createAnalysis(enrichedMetadata, lyrics.lyrics)
+      } catch (error) {
+        emitError(error instanceof Error ? error.message : "The AI analysis could not be created.", 500)
+        return
+      }
+
+      const genreTags = getDisplayTags(enrichedMetadata, generated.analysis)
+      const latencyMs = Date.now() - startedAt
+
+      if (!supabase) {
+        emitProgress("complete", "Analysis created.", 100)
+        streamEvent(controller, {
+          type: "complete",
+          body: {
+            analysis: buildUnsavedAnalysis(enrichedMetadata, genreTags, lyrics, generated, latencyMs),
+            reused: false,
+            unsaved: true,
+          },
+        })
+        controller.close()
+        return
+      }
+
+      emitProgress("save", "Saving the analysis...", 88)
+      const { data, error } = await supabase
+        .from("song_analyses")
+        .upsert(
+          {
+            source_type: enrichedMetadata.sourceType,
+            source_id: enrichedMetadata.sourceId,
+            source_url: enrichedMetadata.sourceUrl,
+            title: enrichedMetadata.title,
+            artist: enrichedMetadata.artist,
+            album: enrichedMetadata.album ?? null,
+            artwork_url: enrichedMetadata.artworkUrl ?? null,
+            release_year: enrichedMetadata.releaseYear ?? null,
+            genre_tags: genreTags,
+            latency_ms: latencyMs,
+            lyrics_provider: lyrics.provider,
+            provider_track_id: lyrics.providerTrackId ?? null,
+            raw_lyrics: lyrics.lyrics,
+            analysis: generated.analysis,
+            model_name: generated.modelName,
+            status: "published",
+          },
+          { onConflict: "source_type,source_id" },
+        )
+        .select("*")
+        .single()
+
+      if (error || !data) {
+        const saveMessage = error?.message ?? "No saved row was returned."
+        emitProgress("complete", "Analysis created, but saving needs attention.", 100)
+        streamEvent(controller, {
+          type: "complete",
+          body: {
+            analysis: buildUnsavedAnalysis(enrichedMetadata, genreTags, lyrics, generated, latencyMs),
+            reused: false,
+            unsaved: true,
+            warning: `The analysis was created, but it could not be saved yet: ${saveMessage}`,
+          },
+        })
+        controller.close()
+        return
+      }
+
+      emitProgress("complete", "Analysis saved.", 100)
+      streamEvent(controller, { type: "complete", body: { analysis: mapSongAnalysisRow(data as SongAnalysisRow), reused: false } })
+      controller.close()
+      } catch (error) {
+        emitError(error instanceof Error ? error.message : "The song analysis request failed unexpectedly.", 500)
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  })
 }
