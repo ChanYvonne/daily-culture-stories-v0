@@ -5,7 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "deploy:functions": "npx supabase functions deploy generate-daily-story --no-verify-jwt",
+    "deploy:functions": "npx supabase functions deploy generate-daily-story --no-verify-jwt && npx supabase functions deploy analyze-song",
+    "deploy:song-analysis-function": "npx supabase functions deploy analyze-song",
+    "postbuild": "node scripts/deploy-song-analysis-function.mjs",
     "import:stories": "node scripts/import-story-seed.mjs",
     "lint": "eslint .",
     "supabase:push": "supabase db push",

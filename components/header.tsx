@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Calendar, BookOpen } from "lucide-react"
+import { BookOpen, Calendar, Music2 } from "lucide-react"
 
 export function Header() {
   return (
@@ -15,6 +15,13 @@ export function Header() {
           </Link>
 
           <nav className="flex items-center gap-4">
+            <Link
+              href="/song-analysis"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Music2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Song Analysis</span>
+            </Link>
             <Link
               href="/#calendar"
               className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

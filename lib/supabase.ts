@@ -31,6 +31,7 @@ export function createSupabaseServerClient(): SupabaseClient | null {
 }
 
 let browserClient: SupabaseClient | null = null
+let serviceClient: SupabaseClient | null = null
 
 export function createSupabaseBrowserClient(): SupabaseClient | null {
   if (browserClient) {
@@ -45,4 +46,26 @@ export function createSupabaseBrowserClient(): SupabaseClient | null {
 
   browserClient = createClient(env.url, env.anonKey)
   return browserClient
+}
+
+export function createSupabaseServiceClient(): SupabaseClient | null {
+  if (serviceClient) {
+    return serviceClient
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !serviceRoleKey) {
+    return null
+  }
+
+  serviceClient = createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  return serviceClient
 }
