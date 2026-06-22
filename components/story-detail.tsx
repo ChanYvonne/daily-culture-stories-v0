@@ -7,7 +7,7 @@ import type { Story } from "@/lib/story-types"
 
 export function StoryDetail({ story }: { story: Story }) {
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-6">
         <Link href={`/?date=${story.storyDate}`}>
           <Button variant="ghost" size="sm" className="gap-2">
@@ -17,14 +17,14 @@ export function StoryDetail({ story }: { story: Story }) {
         </Link>
       </div>
 
-      <div className="flex items-center gap-2 mb-6">
+      <div className="mb-5 flex items-center gap-2">
         <Calendar className="h-5 w-5 text-accent" />
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{story.date}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">{story.date}</h2>
       </div>
 
-      <Card className="p-6 md:p-8 border-2 border-border shadow-lg">
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">
+      <Card className="border-border/80 bg-card/90 p-6 shadow-sm shadow-black/[0.04] md:p-8">
+        <div className="mb-5 flex flex-wrap gap-2">
+          <Badge variant="secondary" className="border-accent/20 bg-accent/10 text-accent">
             {story.category}
           </Badge>
           <Badge variant="outline" className="text-muted-foreground">
@@ -33,24 +33,24 @@ export function StoryDetail({ story }: { story: Story }) {
           </Badge>
         </div>
 
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 leading-tight text-balance">
+        <h1 className="mb-4 text-balance text-3xl font-semibold leading-tight tracking-tight text-foreground md:text-4xl lg:text-5xl">
           {story.title}
         </h1>
 
-        {story.titleChinese && <p className="text-xl md:text-2xl text-accent mb-6 font-medium">{story.titleChinese}</p>}
+        {story.titleChinese && <p className="mb-6 text-xl font-medium text-accent md:text-2xl">{story.titleChinese}</p>}
 
-        <div className="prose prose-lg max-w-none text-foreground/90">
-          <p className="text-lg leading-relaxed mb-4">{story.summary}</p>
+        <div className="max-w-none text-foreground/90">
+          <p className="mb-5 border-l-2 border-accent/60 pl-4 text-lg leading-relaxed text-foreground">{story.summary}</p>
 
-          <div className="mt-6 space-y-4 text-base leading-relaxed">
+          <div className="mt-6 space-y-4 text-base leading-7">
             {story.content.split("\n\n").map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
           </div>
 
           {story.lessonLearned && (
-            <div className="mt-8 p-6 bg-muted/50 rounded-lg border-l-4 border-accent">
-              <h3 className="text-lg font-semibold mb-2 text-foreground">Lesson to Remember</h3>
+            <div className="mt-8 rounded-md border border-border bg-muted/45 p-5">
+              <h3 className="mb-2 text-lg font-semibold text-foreground">Lesson To Remember</h3>
               <p className="text-muted-foreground italic">{story.lessonLearned}</p>
             </div>
           )}

@@ -16,7 +16,27 @@ export type SongAnalysisLine = {
   annotations: PhraseAnnotation[]
 }
 
+export type SongSoundtrackContext = {
+  album?: string | null
+  releaseYear?: string | null
+  isSoundtrack?: boolean | null
+  dramaTitle?: string | null
+  dramaOriginalTitle?: string | null
+  dramaDescription?: string | null
+  relevanceInDrama?: string | null
+  evidenceSummary?: string
+  sourceUrls?: string[]
+  searchQueriesTried?: string[]
+}
+
+export type SongBackground = {
+  summary: string
+  sourceUrls: string[]
+  prompt: string
+}
+
 export type SongAnalysisPayload = {
+  analysisVersion?: string
   overview: string
   displayTags: string[]
   culturalContext: string
@@ -27,6 +47,8 @@ export type SongAnalysisPayload = {
     culturalNote: string
   }>
   imageryNotes: string[]
+  soundtrackContext?: SongSoundtrackContext
+  songBackground?: SongBackground
   lines: SongAnalysisLine[]
 }
 

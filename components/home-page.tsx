@@ -32,11 +32,11 @@ export function HomePage({
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 flex-1 min-h-0">
-      <div className="lg:flex-[3] lg:min-w-0 lg:overflow-y-auto">
+    <div className="grid flex-1 gap-6 lg:min-h-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)] lg:gap-8">
+      <div className="lg:min-w-0 lg:overflow-y-auto">
         <TodayStory story={displayStory} isToday={selectedDate === todayIsoDate} isLoading={isPending} />
       </div>
-      <div className="lg:flex-[2] lg:min-w-0 lg:overflow-y-auto">
+      <div className="lg:min-w-0 lg:overflow-y-auto">
         <CalendarSection
           currentDateIso={todayIsoDate}
           selectedDate={selectedDate}

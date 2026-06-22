@@ -19,9 +19,9 @@ export default async function Home({
   const initialMonthStories = await getStoriesByMonth(initialYear, initialMonth - 1)
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[linear-gradient(180deg,oklch(0.985_0.006_78),oklch(0.965_0.01_78))]">
       <Header />
-      <main className="container mx-auto px-4 py-8 md:py-12 flex-1 flex flex-col">
+      <main className="container mx-auto flex flex-1 flex-col px-4 py-8 md:py-12">
         <HomePage
           initialStory={initialStory}
           todayIsoDate={todayIsoDate}
@@ -30,9 +30,9 @@ export default async function Home({
           initialMonthStories={initialMonthStories}
         />
       </main>
-      <footer className="border-t border-border py-8">
+      <footer className="border-t border-border/70 bg-card/60 py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>Discover Chinese and Taiwanese culture, one story at a time</p>
+          <p>Discover Chinese And Taiwanese Culture, One Story At A Time</p>
         </div>
       </footer>
     </div>

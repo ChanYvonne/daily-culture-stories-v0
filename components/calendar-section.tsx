@@ -88,33 +88,33 @@ export function CalendarSection({
 
   return (
     <div id="calendar" className="scroll-mt-20">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="mb-5 flex items-center gap-2">
         <Calendar className="h-5 w-5 text-accent" />
-        <h2 className="text-2xl md:text-3xl font-bold text-foreground">Story Archive</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Story Archive</h2>
       </div>
 
-      <Card className="p-4 md:p-6">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="outline" size="sm" onClick={goToPreviousMonth} className="gap-2 bg-transparent">
+      <Card className="border-border/80 bg-card/85 p-4 shadow-sm shadow-black/[0.04] md:p-5">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <Button variant="outline" size="sm" onClick={goToPreviousMonth} className="gap-2 bg-background/40">
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Previous</span>
           </Button>
 
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-center text-lg font-semibold tracking-tight">
             {monthNames[selectedMonth]} {selectedYear}
           </h3>
 
-          <Button variant="outline" size="sm" onClick={goToNextMonth} className="gap-2 bg-transparent">
+          <Button variant="outline" size="sm" onClick={goToNextMonth} className="gap-2 bg-background/40">
             <span className="hidden sm:inline">Next</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
 
-        {isLoading && <p className="mb-4 text-sm text-muted-foreground">Loading stories for this month...</p>}
+        {isLoading && <p className="mb-4 text-sm text-muted-foreground">Loading Stories For This Month...</p>}
 
         <div className="grid grid-cols-7 gap-2">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div key={day} className="text-center text-xs font-medium text-muted-foreground p-2">
+            <div key={day} className="p-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {day}
             </div>
           ))}
@@ -135,14 +135,14 @@ export function CalendarSection({
                 key={day}
                 onClick={() => onDateSelect(storyDate)}
                 className={`
-                  aspect-square flex flex-col items-center justify-center p-2 rounded-md
-                  transition-all hover:scale-105
+                  aspect-square flex flex-col items-center justify-center rounded-md p-2
+                  transition-colors
                   ${
                     isSelected
-                      ? "bg-primary text-primary-foreground font-bold shadow-md ring-2 ring-primary ring-offset-2"
+                      ? "bg-primary text-primary-foreground font-semibold shadow-sm ring-2 ring-primary/25 ring-offset-2"
                       : isToday
                         ? "bg-accent text-accent-foreground font-semibold"
-                        : "bg-accent/10 hover:bg-accent/20 text-foreground"
+                        : "border border-border/60 bg-background/55 text-foreground hover:border-accent/50 hover:bg-secondary/80"
                   }
                 `}
               >
@@ -155,8 +155,8 @@ export function CalendarSection({
               <div
                 key={day}
                 className={`
-                  aspect-square flex items-center justify-center p-2 rounded-md
-                  ${isToday ? "bg-muted font-bold border-2 border-primary" : "text-muted-foreground"}
+                  aspect-square flex items-center justify-center rounded-md p-2
+                  ${isToday ? "border border-primary/50 bg-muted font-semibold" : "text-muted-foreground/70"}
                 `}
               >
                 <span className="text-sm md:text-base">{day}</span>
@@ -165,18 +165,18 @@ export function CalendarSection({
           })}
         </div>
 
-        <div className="mt-6 flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary ring-2 ring-primary ring-offset-2" />
+            <div className="h-5 w-5 rounded bg-primary ring-2 ring-primary/25 ring-offset-2" />
             <span>Selected</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-accent" />
+            <div className="h-5 w-5 rounded bg-accent" />
             <span>Today</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-accent/10" />
-            <span>Story available</span>
+            <div className="h-5 w-5 rounded border border-border bg-background/55" />
+            <span>Story Available</span>
           </div>
         </div>
       </Card>

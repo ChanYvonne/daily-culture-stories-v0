@@ -63,6 +63,10 @@ function isUsableLyrics(lyrics: string | null | undefined) {
   return Boolean(lyrics && lyrics.trim().length >= MIN_LYRICS_LENGTH)
 }
 
+function countLyricLines(lyrics: string) {
+  return lyrics.split("\n").filter((line) => line.trim()).length
+}
+
 function cleanLrcLyrics(lyrics: string) {
   return lyrics
     .split("\n")
@@ -74,6 +78,25 @@ function cleanLrcLyrics(lyrics: string) {
     )
     .filter(Boolean)
     .join("\n")
+}
+
+function chooseLrcLyrics(result: LrcLibLyrics) {
+  const plainLyrics = isUsableLyrics(result.plainLyrics) ? cleanLrcLyrics(result.plainLyrics ?? "") : ""
+  const syncedLyrics = isUsableLyrics(result.syncedLyrics) ? cleanLrcLyrics(result.syncedLyrics ?? "") : ""
+
+  if (syncedLyrics && countLyricLines(syncedLyrics) > countLyricLines(plainLyrics)) {
+    return { lyrics: syncedLyrics, provider: "LRCLIB synced" }
+  }
+
+  if (plainLyrics) {
+    return { lyrics: plainLyrics, provider: "LRCLIB" }
+  }
+
+  if (syncedLyrics) {
+    return { lyrics: syncedLyrics, provider: "LRCLIB synced" }
+  }
+
+  return null
 }
 
 async function fetchJson<T>(url: URL): Promise<T | null> {
@@ -103,20 +126,18 @@ function mapLrcLibLyrics(result: LrcLibLyrics | null): LyricsResearchResult | nu
     return null
   }
 
-  const rawLyrics = result.plainLyrics || result.syncedLyrics
+  const selectedLyrics = chooseLrcLyrics(result)
 
-  if (typeof rawLyrics !== "string" || !isUsableLyrics(rawLyrics)) {
+  if (!selectedLyrics) {
     return null
   }
 
-  const lyrics = rawLyrics.trim()
-
   return {
-    provider: "LRCLIB",
+    provider: selectedLyrics.provider,
     providerTrackId: result.id ? String(result.id) : undefined,
     title: result.trackName,
     artist: result.artistName,
-    lyrics: cleanLrcLyrics(lyrics),
+    lyrics: selectedLyrics.lyrics,
   }
 }
 

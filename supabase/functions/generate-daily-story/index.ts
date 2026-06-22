@@ -165,6 +165,9 @@ Reflection
 - Use only **Simplified Chinese, Traditional Chinese, and English**
 - Include **pinyin with tone marks**
 - Maintain a tone that is **engaging, thoughtful, and culturally grounded**
+- On **Chinese Idiom** and **Language Lesson** days, choose the main Chinese phrase and any taught vocabulary at **HSK Level 4 or above** whenever possible
+- Do not use HSK 1-3 beginner words as the main learning target on Chinese Idiom or Language Lesson days unless they are part of a longer idiom or culturally specific expression
+- Prefer practical but challenging words, idioms, set phrases, and culturally meaningful expressions that would stretch an intermediate learner
 
 ---
 
@@ -181,7 +184,8 @@ Reflection
 ### Content-Specific Guidance
 
 - Idioms (Monday): Include origin or historical context naturally
-- Language Lessons (Tuesday & Saturday): Focus on practical usage, tone, and real-life nuance; slang is allowed when relevant
+- Idioms (Monday): The featured idiom or key expression should be at least HSK 4+ in difficulty or clearly beyond beginner everyday vocabulary
+- Language Lessons (Tuesday & Saturday): Focus on practical usage, tone, and real-life nuance; slang is allowed when relevant; taught vocabulary should be HSK 4+ or more advanced
 - History (Wednesday/Thursday): Anchor in real events or cultural developments
 - Traditions (Friday): Explain meaning, rituals, and cultural significance
 - Sunday (Tongue Twister or Joke):
@@ -285,6 +289,9 @@ function buildUserPrompt(storyDate: string, event: CalendarEvent | null, recentS
     "Provide exactly two backgroundParagraphs. Do not include heading text inside either paragraph.",
     "Provide exactly one sourceUrl. It must be a credible, accessible, directly relevant URL.",
     "whyThisDateMatters should explain the date relevance or fallback rationale in one sentence for internal use only.",
+    fallback.category === "Chinese Idiom" || fallback.category === "Language Lesson"
+      ? "Because this is an idiom or language lesson day, the main phrase and taught vocabulary must be HSK Level 4 or above where possible. Avoid beginner HSK 1-3 words as the main learning target."
+      : "If the final category becomes Chinese Idiom or Language Lesson, choose the main phrase and taught vocabulary at HSK Level 4 or above where possible.",
   ].join("\n")
 }
 
@@ -503,7 +510,7 @@ Deno.serve(async (request) => {
           source_event_id: event?.id ?? null,
           content_hash: contentHash,
           model_name: modelName,
-          prompt_version: "daily-story-v2",
+          prompt_version: "daily-story-v3-hsk4",
           is_featured: true,
           display_order: 0,
         })
@@ -529,7 +536,7 @@ Deno.serve(async (request) => {
         source_event_id: event?.id ?? null,
         content_hash: contentHash,
         model_name: modelName,
-        prompt_version: "daily-story-v2",
+        prompt_version: "daily-story-v3-hsk4",
       })
 
       if (insertError) {
