@@ -11,7 +11,7 @@ import {
 
 const LYRICS_API_BASE_URL = process.env.LYRICS_API_BASE_URL ?? "https://lyrics.lewdhutao.my.eu.org"
 const DEFAULT_MODEL = "gpt-4.1-mini"
-const ANALYSIS_VERSION = "song-analysis-v4-song-background"
+const ANALYSIS_VERSION = "song-analysis-v5-hsk4-annotations"
 const SONG_BACKGROUND_PROMPT =
   "For each song, search the web and write one concise paragraph summarizing the Chinese drama, movie, TV show, or variety show it is most strongly associated with. Include the media title, how the song was used, key production credits, any memorable behind-the-scenes story, and only the most important popularity facts or statistics. Do not include lyric meaning analysis unless it directly explains the song’s media use or popularity. Prioritize official OST pages, label/artist sources, reputable entertainment outlets, interviews, award pages, and music databases. If no reliable media association exists, say so clearly and give the strongest known association instead. Keep each paragraph to 4 to 6 sentences. Do not cite sources sentence-by-sentence, and do not include raw URLs, bare domains like en.wikipedia.org, parenthetical domain citations like (music.apple.com), Markdown links, bracketed citations, or a source list inside the paragraph; put 2 to 4 verification links only in sourceUrls."
 const OPENAI_TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504])
@@ -644,9 +644,11 @@ function removeInlineSourceUrls(summary: string) {
 }
 
 function normalizeSongBackground(background: SongBackground | null | undefined) {
+  const sourceUrls = background?.sourceUrls
+
   return {
     summary: removeInlineSourceUrls(background?.summary?.trim() || "No reliable media association was found yet."),
-    sourceUrls: Array.isArray(background?.sourceUrls) ? background.sourceUrls.filter(Boolean).slice(0, 4) : [],
+    sourceUrls: Array.isArray(sourceUrls) ? sourceUrls.filter(Boolean).slice(0, 4) : [],
     prompt: background?.prompt || SONG_BACKGROUND_PROMPT,
   }
 }
@@ -816,6 +818,11 @@ async function createAnalysis(
               "For each line, literalTranslation should read like polished English song lyrics: poetic, natural, emotionally faithful, and line-length conscious for side-by-side display.",
               "Do not make literalTranslation sound like a dictionary gloss; preserve the original line's feeling, image, and rhythm while keeping the meaning accurate.",
               "Use culturalMeaning for explanation and interpretation, not literalTranslation.",
+              "Use line.annotations to highlight and define every Chinese word or phrase in that lyric line whose vocabulary difficulty is above HSK Level 4: HSK 5+, HSK 6+, HSK 7-9, 成语, literary expressions, poetic compounds, set phrases, slang, and culturally specific terms.",
+              "Do not annotate common HSK 1-4 words unless they are part of a longer above-HSK-4 phrase, idiom, or culturally specific expression.",
+              "Each annotation phrase must be an exact substring of the original lyric line. Prefer the longest meaningful phrase and avoid overlapping smaller annotations when a longer phrase explains the same text.",
+              "If a line has no above-HSK-4 vocabulary, return annotations as an empty array for that line.",
+              "Use idiomsAndPhrases only for above-HSK-4 lyric phrases that appear in the lyrics and are especially useful to review across the song.",
               "Keep explanatory notes out of the lyric translation column; phrase-specific explanations belong only in annotations for the Chinese phrase they refer to.",
               "Write culturalContext as a concise lyric meaning overview. Do not repeat the Song Background paragraph there.",
               "Use the supplied soundtrackContext exactly for soundtrack, Chinese drama, film, OST, album, and release claims.",

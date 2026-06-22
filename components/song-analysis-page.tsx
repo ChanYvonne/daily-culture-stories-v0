@@ -28,7 +28,7 @@ type AnalysisStreamEvent =
 
 type PhraseItem = SongAnalysis["analysis"]["idiomsAndPhrases"][number]
 type SongBackground = NonNullable<SongAnalysis["analysis"]["songBackground"]>
-const ANALYSIS_VERSION = "song-analysis-v4-song-background"
+const ANALYSIS_VERSION = "song-analysis-v5-hsk4-annotations"
 
 function SectionHeading({ children }: { children: string }) {
   return (
